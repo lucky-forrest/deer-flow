@@ -21,6 +21,13 @@ elapsed=0
 interval=1
 
 is_port_listening() {
+    # Primary: try HTTP health check (most reliable, works everywhere)
+    if command -v curl >/dev/null 2>&1; then
+        if curl -s -o /dev/null -w "%{http_code}" "http://localhost:$PORT" 2>/dev/null | grep -q .; then
+            return 0
+        fi
+    fi
+
     if command -v lsof >/dev/null 2>&1; then
         if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
             return 0
@@ -34,6 +41,11 @@ is_port_listening() {
     fi
 
     if command -v netstat >/dev/null 2>&1; then
+        # Windows netstat (no -ltn flag, different output format)
+        if netstat -ano 2>/dev/null | awk '{print $2}' | grep -Eq "(^|[.:])${PORT}$"; then
+            return 0
+        fi
+        # Linux netstat
         if netstat -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "(^|[.:])${PORT}$"; then
             return 0
         fi
